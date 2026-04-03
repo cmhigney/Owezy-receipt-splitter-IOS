@@ -82,6 +82,7 @@ The following UI and data issues are currently being worked on and are intention
 
 - Greyed-out bubble bleeds into the camera view slightly.
 - The receipts scanned total does not update correctly after deleting receipts from History.
+- The text on the summary screen goes off the widget a little bit, fixing that currently
 
 ### 1. Prerequisites
 
