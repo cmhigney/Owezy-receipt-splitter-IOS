@@ -6,6 +6,83 @@ This repo is now wired for:
 - Firestore persistence in Firebase runtime
 - SQLite persistence for local non-Firebase runtime
 
+## App Screens
+
+The screenshots below are ordered to match the main app flow from onboarding through split completion and the tab views.
+
+### 1. Onboarding
+
+Landing screen that introduces Owezy and highlights the core promise: split receipts in seconds.
+
+![Onboarding](docs/screenshots/01-onboarding.png)
+
+### 2. Home
+
+The main dashboard where users can scan a receipt, upload a photo, or start a manual entry.
+
+![Home](docs/screenshots/02-home.png)
+
+### 3. Who's Splitting
+
+The people picker where users choose who is part of the current bill before assigning items.
+
+![Who's Splitting](docs/screenshots/03-people.png)
+
+### 4. Edit Items
+
+The item editor where scanned line items can be reviewed, adjusted, deleted, or added before splitting.
+
+![Edit Items](docs/screenshots/04-edit-items.png)
+
+### 5. Tip
+
+The tip screen where Owezy shows the detected tip and lets users split it by items or evenly.
+
+![Tip](docs/screenshots/05-tip.png)
+
+### 6. Assign Items
+
+The assignment screen where each line item is split across the selected people.
+
+![Assign Items](docs/screenshots/06-assign-items.png)
+
+### 7. Summary
+
+The final split summary showing the total, tax, tip, and each person’s itemized share.
+
+![Summary](docs/screenshots/07-summary.png)
+
+### 8. Payment
+
+The payment request screen where users can send payment requests, share details, or mark someone as paid.
+
+![Payment](docs/screenshots/08-payment.png)
+
+### 9. History
+
+The receipt history view where past splits can be searched, filtered, and reviewed by payment state.
+
+![History](docs/screenshots/09-history.png)
+
+### 10. Friends
+
+The friends tab where users can manage saved split contacts and send friend requests.
+
+![Friends](docs/screenshots/10-friends.png)
+
+### 11. Profile
+
+The account profile screen showing scan totals, split totals, subscription status, and profile settings.
+
+![Profile](docs/screenshots/11-profile.png)
+
+## Changes In Progress
+
+The following UI and data issues are currently being worked on and are intentionally noted here for visibility:
+
+- Greyed-out bubble bleeds into the camera view slightly.
+- The receipts scanned total does not update correctly after deleting receipts from History.
+
 ### 1. Prerequisites
 
 Install Firebase CLI:
