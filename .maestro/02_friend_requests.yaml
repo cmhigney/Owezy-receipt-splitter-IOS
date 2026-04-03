@@ -1,0 +1,95 @@
+appId: app.owezy.receipt.splitter
+---
+- launchApp:
+    clearState: true
+
+- extendedWaitUntil:
+    visible:
+      id: "tab-login"
+    timeout: 20000
+
+- tapOn:
+    id: "tab-login"
+- tapOn:
+    id: "login-email"
+- inputText: ${PRIMARY_TEST_EMAIL}
+- tapOn:
+    id: "login-password"
+- inputText: ${PRIMARY_TEST_PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "login-button"
+
+- extendedWaitUntil:
+    visible:
+      text: "Ready to split a bill?"
+    timeout: 60000
+
+- tapOn:
+    text: "OK"
+    optional: true
+- tapOn: "Friends"
+- extendedWaitUntil:
+    visible:
+      id: "add-friend-button"
+    timeout: 15000
+- tapOn:
+    id: "add-friend-button"
+- tapOn:
+    id: "friend-username-input"
+- inputText: ${SECONDARY_TEST_USERNAME}
+- tapOn: "Find User"
+- extendedWaitUntil:
+    visible:
+      text: "${SECONDARY_TEST_DISPLAY_NAME}"
+    timeout: 15000
+- tapOn:
+    id: "save-friend-button"
+- tapOn: "OK"
+
+- tapOn: "Profile"
+- extendedWaitUntil:
+    visible:
+      id: "profile-logout-button"
+    timeout: 15000
+- tapOn:
+    id: "profile-logout-button"
+- tapOn: "Log Out"
+
+- extendedWaitUntil:
+    visible:
+      id: "tab-login"
+    timeout: 20000
+
+- tapOn:
+    id: "tab-login"
+- tapOn:
+    id: "login-email"
+- inputText: ${SECONDARY_TEST_EMAIL}
+- tapOn:
+    id: "login-password"
+- inputText: ${SECONDARY_TEST_PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "login-button"
+
+- extendedWaitUntil:
+    visible:
+      text: "Ready to split a bill?"
+    timeout: 60000
+
+- tapOn:
+    text: "OK"
+    optional: true
+- tapOn: "Friends"
+- extendedWaitUntil:
+    visible:
+      id: "request-accept-${PRIMARY_TEST_USERNAME}"
+    timeout: 20000
+- tapOn:
+    id: "request-accept-${PRIMARY_TEST_USERNAME}"
+- extendedWaitUntil:
+    visible:
+      text: "${PRIMARY_TEST_DISPLAY_NAME}"
+    timeout: 15000
+- takeScreenshot: "screenshots/02_friends"

@@ -1,0 +1,31 @@
+{
+  "defaults": {
+    "peopleCount": 4
+  },
+  "cases": [
+    {
+      "id": "auto-grat-party",
+      "label": "Auto gratuity receipt",
+      "file": "receipts/auto-grat-1.jpg",
+      "peopleCount": 8,
+      "expect": {
+        "minItems": 5,
+        "autoGratuityDetected": true,
+        "partySizeMin": 8,
+        "ui": {
+          "requiresPartySizePrompt": true,
+          "manualTipShowsSplitMode": true
+        }
+      }
+    },
+    {
+      "id": "regular-receipt",
+      "label": "Standard restaurant receipt",
+      "file": "receipts/regular-1.jpg",
+      "expect": {
+        "minItems": 3,
+        "autoGratuityDetected": false
+      }
+    }
+  ]
+}

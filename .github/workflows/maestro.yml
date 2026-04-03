@@ -1,0 +1,500 @@
+name: E2E iOS Tests
+
+on:
+  workflow_dispatch:
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set E2E test identities
+        run: |
+          # Keep local-parts alphanumeric only. Maestro on iOS has been observed
+          # to mangle dotted aliases while typing into the animated auth form.
+          PRIMARY_EMAIL="owezyci${GITHUB_RUN_ID}${GITHUB_RUN_ATTEMPT}a@example.com"
+          echo "PRIMARY_TEST_EMAIL=$PRIMARY_EMAIL" >> "$GITHUB_ENV"
+          echo "=== Primary test email: $PRIMARY_EMAIL ==="
+
+      - name: Verify Firebase CI env
+        run: |
+          for name in \
+            EXPO_PUBLIC_FIREBASE_API_KEY \
+            EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN \
+            EXPO_PUBLIC_FIREBASE_PROJECT_ID \
+            EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET \
+            EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID \
+            EXPO_PUBLIC_FIREBASE_APP_ID
+          do
+            if [ -z "${!name}" ]; then
+              echo "Missing required GitHub repository variable: $name"
+              exit 1
+            fi
+          done
+          if [ -z "$TEST_PASSWORD" ]; then
+            echo "Missing TEST_PASSWORD secret"
+            exit 1
+          fi
+        env:
+          EXPO_PUBLIC_FIREBASE_API_KEY: ${{ vars.EXPO_PUBLIC_FIREBASE_API_KEY }}
+          EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ vars.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          EXPO_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.EXPO_PUBLIC_FIREBASE_PROJECT_ID }}
+          EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ vars.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+          EXPO_PUBLIC_FIREBASE_APP_ID: ${{ vars.EXPO_PUBLIC_FIREBASE_APP_ID }}
+          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+
+      - name: Start local backend
+        run: |
+          OWEZY_STORE_MODE=memory nohup npx tsx scripts/ci-backend.ts > /tmp/ci-backend.log 2>&1 &
+          echo $! > /tmp/ci-backend.pid
+          echo "Waiting for local backend to be ready..."
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:3001/ > /dev/null 2>&1; then
+              echo "Backend ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "ERROR: Backend did not start within 30s"
+          cat /tmp/ci-backend.log || true
+          exit 1
+        env:
+          NODE_OPTIONS: --experimental-sqlite
+          OWEZY_STORE_MODE: memory
+          OWEZY_ALLOW_INSECURE_LOCAL_AUTH: '1'
+
+      - name: Seed CI users
+        run: node scripts/seed-ci-local.js
+        env:
+          TEST_EMAIL: ${{ env.PRIMARY_TEST_EMAIL }}
+          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+          TEST_DISPLAY_NAME: CI Primary
+          TEST_USERNAME: cibotalpha1
+          FIREBASE_API_KEY: ${{ vars.EXPO_PUBLIC_FIREBASE_API_KEY }}
+          BACKEND_URL: http://127.0.0.1:3001
+
+      - name: Upload preflight backend log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: preflight-backend-log
+          path: /tmp/ci-backend.log
+
+  e2e:
+    needs: preflight
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Maestro CLI
+        run: |
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> $GITHUB_PATH
+
+      - name: Boot simulator
+        run: |
+          xcrun simctl boot "iPhone 15" 2>/dev/null || xcrun simctl boot "iPhone 16" 2>/dev/null || true
+          xcrun simctl bootstatus booted -b
+          xcrun simctl list devices | grep Booted
+
+      - name: Detect host IP for simulator
+        id: host-ip
+        run: |
+          echo "=== All network interfaces ==="
+          ifconfig | grep -E "(^[a-z]|inet )" | head -60 || true
+          echo ""
+          echo "=== ipconfig getifaddr per interface ==="
+          for iface in en0 en1 en2 en3 lo0 eth0; do
+            IP=$(ipconfig getifaddr $iface 2>/dev/null || echo "N/A")
+            echo "  $iface: $IP"
+          done
+          echo ""
+          echo "=== Default route ==="
+          route -n get default 2>/dev/null | grep -E "(interface:|gateway:)" || netstat -nr | grep default | head -3 || true
+          echo ""
+          echo "=== Booted simulator info ==="
+          xcrun simctl list devices | grep -E "Booted|iPhone" | head -10 || true
+          echo ""
+          # iOS 26 simulator no longer routes 127.0.0.1 to the host loopback.
+          # Use the host's LAN IP so the simulator app can reach the backend.
+          HOST_IP=$(ipconfig getifaddr en0 2>/dev/null || \
+                    ipconfig getifaddr en1 2>/dev/null || \
+                    route -n get default 2>/dev/null | awk '/interface:/{print $2}' | xargs -I{} ipconfig getifaddr {} 2>/dev/null || \
+                    echo "127.0.0.1")
+          echo "HOST_IP=$HOST_IP" >> $GITHUB_ENV
+          echo "ip=$HOST_IP" >> $GITHUB_OUTPUT
+          echo "=== Selected HOST_IP: $HOST_IP ==="
+          echo "=== Backend will be baked into app as: http://$HOST_IP:3001 ==="
+
+      - name: Set E2E test identities
+        run: |
+          PRIMARY_EMAIL="owezyci${GITHUB_RUN_ID}${GITHUB_RUN_ATTEMPT}a@example.com"
+          echo "PRIMARY_TEST_EMAIL=$PRIMARY_EMAIL" >> "$GITHUB_ENV"
+          echo "=== Primary test email: $PRIMARY_EMAIL ==="
+
+      - name: Verify Firebase CI env
+        run: |
+          for name in \
+            EXPO_PUBLIC_FIREBASE_API_KEY \
+            EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN \
+            EXPO_PUBLIC_FIREBASE_PROJECT_ID \
+            EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET \
+            EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID \
+            EXPO_PUBLIC_FIREBASE_APP_ID
+          do
+            if [ -z "${!name}" ]; then
+              echo "Missing required GitHub repository variable: $name"
+              exit 1
+            fi
+          done
+        env:
+          EXPO_PUBLIC_FIREBASE_API_KEY: ${{ vars.EXPO_PUBLIC_FIREBASE_API_KEY }}
+          EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ vars.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          EXPO_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.EXPO_PUBLIC_FIREBASE_PROJECT_ID }}
+          EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ vars.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+          EXPO_PUBLIC_FIREBASE_APP_ID: ${{ vars.EXPO_PUBLIC_FIREBASE_APP_ID }}
+
+      - name: Generate native iOS project
+        run: npx expo prebuild --platform ios --clean --no-install
+        env:
+          EXPO_PUBLIC_API_BASE_URL: http://${{ env.HOST_IP }}:3001
+          EXPO_PUBLIC_FIREBASE_API_KEY: ${{ vars.EXPO_PUBLIC_FIREBASE_API_KEY }}
+          EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ vars.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          EXPO_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.EXPO_PUBLIC_FIREBASE_PROJECT_ID }}
+          EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ vars.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+          EXPO_PUBLIC_FIREBASE_APP_ID: ${{ vars.EXPO_PUBLIC_FIREBASE_APP_ID }}
+          EXPO_PUBLIC_ADMOB_IOS_APP_ID: ca-app-pub-3940256099942544~1458002511
+          EXPO_PUBLIC_ADS_ENABLED: '0'
+          EXPO_PUBLIC_E2E_SKIP_EMAIL_VERIFICATION: '1'
+          EXPO_PUBLIC_E2E_ENABLE_TEST_RECEIPTS: '1'
+          EXPO_NO_NEW_ARCH: '1'
+
+      - name: Force NSAllowsArbitraryLoads in generated plist
+        run: |
+          PLIST=$(find ios -name "Info.plist" -not -path "*/Pods/*" | head -1)
+          echo "Plist: $PLIST"
+          # Force-write ATS keys regardless of what Expo plugins may have set.
+          /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Delete :NSAppTransportSecurity:NSAllowsArbitraryLoads" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsArbitraryLoads bool true" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Delete :NSAppTransportSecurity:NSAllowsLocalNetworking" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true" "$PLIST"
+          echo "=== NSAppTransportSecurity after force-write ==="
+          /usr/libexec/PlistBuddy -c "Print :NSAppTransportSecurity" "$PLIST"
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: ios/Pods
+          key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile.lock') }}
+          restore-keys: ${{ runner.os }}-pods-
+
+      - name: Install CocoaPods
+        run: pod install
+        working-directory: ios
+
+      - name: Cache Xcode DerivedData
+        uses: actions/cache@v4
+        with:
+          path: build
+          key: ${{ runner.os }}-xcode-local5-${{ hashFiles('ios/Podfile.lock', 'package.json', 'app.config.ts') }}-${{ env.HOST_IP }}
+          restore-keys: ${{ runner.os }}-xcode-local5-${{ hashFiles('ios/Podfile.lock', 'package.json', 'app.config.ts') }}-
+
+      - name: Build Release .app for simulator
+        run: |
+          WORKSPACE=$(find ios -maxdepth 1 -name "*.xcworkspace" | head -1)
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          echo "Workspace: $WORKSPACE  Scheme: $SCHEME"
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath ./build \
+            CODE_SIGNING_ALLOWED=NO \
+            -quiet
+        env:
+          EXPO_PUBLIC_API_BASE_URL: http://${{ env.HOST_IP }}:3001
+          EXPO_PUBLIC_FIREBASE_API_KEY: ${{ vars.EXPO_PUBLIC_FIREBASE_API_KEY }}
+          EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ vars.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          EXPO_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.EXPO_PUBLIC_FIREBASE_PROJECT_ID }}
+          EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ vars.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+          EXPO_PUBLIC_FIREBASE_APP_ID: ${{ vars.EXPO_PUBLIC_FIREBASE_APP_ID }}
+          EXPO_PUBLIC_ADMOB_IOS_APP_ID: ca-app-pub-3940256099942544~1458002511
+          EXPO_PUBLIC_ADS_ENABLED: '0'
+          EXPO_PUBLIC_E2E_SKIP_EMAIL_VERIFICATION: '1'
+          EXPO_PUBLIC_E2E_ENABLE_TEST_RECEIPTS: '1'
+          EXPO_NO_NEW_ARCH: '1'
+
+      - name: Install app on simulator
+        run: |
+          APP=$(find ./build -name "*.app" -not -name "*.dSYM.app" | grep -i simulator | head -1)
+          echo "Installing $APP"
+          xcrun simctl install booted "$APP"
+
+      - name: Verify ATS config in BUILT .app
+        run: |
+          APP=$(find ./build -name "*.app" -not -name "*.dSYM.app" | grep -i simulator | head -1)
+          echo "=== App bundle: $APP ==="
+          PLIST="$APP/Info.plist"
+          if [ ! -f "$PLIST" ]; then
+            echo "ERROR: Info.plist not found in built .app at $PLIST"
+            exit 1
+          fi
+          echo "=== NSAppTransportSecurity in BUILT .app Info.plist ==="
+          /usr/libexec/PlistBuddy -c "Print :NSAppTransportSecurity" "$PLIST" 2>/dev/null \
+            || echo "WARNING: NSAppTransportSecurity key NOT FOUND in built app Info.plist — ATS will block HTTP!"
+          echo ""
+          echo "=== NSAllowsArbitraryLoads value ==="
+          VAL=$(/usr/libexec/PlistBuddy -c "Print :NSAppTransportSecurity:NSAllowsArbitraryLoads" "$PLIST" 2>/dev/null || echo "MISSING")
+          echo "  NSAllowsArbitraryLoads = $VAL"
+          if [ "$VAL" = "true" ]; then
+            echo "  ✓ NSAllowsArbitraryLoads is TRUE — ATS disabled for HTTP"
+          else
+            echo "  ✗ NSAllowsArbitraryLoads is $VAL — ATS WILL BLOCK HTTP CONNECTIONS"
+            exit 1
+          fi
+          echo ""
+          echo "=== NSAllowsLocalNetworking value ==="
+          LN=$(/usr/libexec/PlistBuddy -c "Print :NSAppTransportSecurity:NSAllowsLocalNetworking" "$PLIST" 2>/dev/null || echo "MISSING")
+          echo "  NSAllowsLocalNetworking = $LN"
+
+      - name: Verify URL baked into bundle
+        run: |
+          APP=$(find ./build -name "*.app" -not -name "*.dSYM.app" | grep -i simulator | head -1)
+          echo "App path: $APP"
+          # Try main.jsbundle first, then search the whole .app for any .jsbundle
+          BUNDLE="$APP/main.jsbundle"
+          if [ ! -f "$BUNDLE" ]; then
+            BUNDLE=$(find "$APP" -name "*.jsbundle" | head -1)
+          fi
+          echo "Bundle path: $BUNDLE"
+          if [ -z "$BUNDLE" ] || [ ! -f "$BUNDLE" ]; then
+            echo "ERROR: No .jsbundle found in app — Metro did not produce a bundle"
+            exit 1
+          fi
+          EXPECTED_URL="$HOST_IP:3001"
+          if grep -qc "$EXPECTED_URL" "$BUNDLE" 2>/dev/null; then
+            echo "✓ $EXPECTED_URL confirmed in bundle"
+          elif grep -qc "127.0.0.1:3001" "$BUNDLE" 2>/dev/null; then
+            echo "ERROR: Stale cached build has 127.0.0.1 baked in — need $HOST_IP. Invalidating cache."
+            exit 1
+          elif grep -qc "backend-7yfqvahoxa" "$BUNDLE" 2>/dev/null; then
+            echo "ERROR: Production Cloud Run URL found — cached build with old URL restored!"
+            exit 1
+          else
+            echo "ERROR: Backend URL $EXPECTED_URL not found in bundle — Metro env replacement failed!"
+            exit 1
+          fi
+
+      - name: Start local backend
+        run: |
+          OWEZY_STORE_MODE=memory nohup npx tsx scripts/ci-backend.ts > /tmp/ci-backend.log 2>&1 &
+          echo $! > /tmp/ci-backend.pid
+          echo "Waiting for local backend to be ready..."
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:3001/ > /dev/null 2>&1; then
+              echo "Backend ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "ERROR: Backend did not start within 30s"
+          cat /tmp/ci-backend.log || true
+          exit 1
+        env:
+          NODE_OPTIONS: --experimental-sqlite
+          OWEZY_STORE_MODE: memory
+          OWEZY_ALLOW_INSECURE_LOCAL_AUTH: '1'
+
+      - name: Seed CI users
+        run: node scripts/seed-ci-local.js
+        env:
+          TEST_EMAIL: ${{ env.PRIMARY_TEST_EMAIL }}
+          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+          TEST_DISPLAY_NAME: CI Primary
+          TEST_USERNAME: cibotalpha1
+          FIREBASE_API_KEY: ${{ vars.EXPO_PUBLIC_FIREBASE_API_KEY }}
+          BACKEND_URL: http://127.0.0.1:3001
+
+      - name: Verify backend alive and network connectivity before Maestro
+        run: |
+          echo "================================================"
+          echo "  PRE-MAESTRO NETWORK DIAGNOSTIC"
+          echo "================================================"
+
+          echo ""
+          echo "--- Port 3001 listeners (lsof) ---"
+          lsof -i :3001 2>/dev/null || echo "(lsof returned nothing — nothing listening on 3001?)"
+
+          echo ""
+          echo "--- Backend process status ---"
+          if [ -f /tmp/ci-backend.pid ]; then
+            PID=$(cat /tmp/ci-backend.pid)
+            echo "Backend PID from file: $PID"
+            ps aux | grep "$PID" | grep -v grep || echo "Process $PID not found in ps"
+          fi
+
+          echo ""
+          echo "--- Curl 127.0.0.1:3001 (verbose) ---"
+          curl -v http://127.0.0.1:3001/ 2>&1 | head -40 || echo "FAILED: 127.0.0.1:3001"
+
+          echo ""
+          echo "--- Curl $HOST_IP:3001 (verbose) ---"
+          curl -v http://$HOST_IP:3001/ 2>&1 | head -40 || echo "FAILED: $HOST_IP:3001"
+
+          echo ""
+          echo "--- TCP reachability (nc) ---"
+          nc -zv 127.0.0.1 3001 2>&1 && echo "nc OK: 127.0.0.1:3001" || echo "nc FAIL: 127.0.0.1:3001"
+          nc -zv $HOST_IP 3001 2>&1 && echo "nc OK: $HOST_IP:3001" || echo "nc FAIL: $HOST_IP:3001"
+
+          echo ""
+          echo "--- xcrun simctl spawn curl (runs in simulator process, uses HOST network) ---"
+          echo "  Testing 127.0.0.1:3001 from simctl spawn:"
+          xcrun simctl spawn booted curl -sv --max-time 5 http://127.0.0.1:3001/ 2>&1 | head -30 \
+            && echo "simctl curl 127.0.0.1 SUCCEEDED" \
+            || echo "simctl curl 127.0.0.1 FAILED (expected on iOS 26 with network isolation)"
+          echo ""
+          echo "  Testing $HOST_IP:3001 from simctl spawn:"
+          xcrun simctl spawn booted curl -sv --max-time 5 http://$HOST_IP:3001/ 2>&1 | head -30 \
+            && echo "simctl curl $HOST_IP SUCCEEDED" \
+            || echo "simctl curl $HOST_IP FAILED"
+
+          echo ""
+          echo "--- Auto-restart if backend died ---"
+          if curl -sf http://127.0.0.1:3001/ > /dev/null 2>&1; then
+            echo "✓ Backend alive"
+          else
+            echo "WARNING: Backend dead — restarting and re-seeding..."
+            OWEZY_STORE_MODE=memory nohup npx tsx scripts/ci-backend.ts >> /tmp/ci-backend.log 2>&1 &
+            for i in $(seq 1 20); do
+              if curl -sf http://127.0.0.1:3001/ > /dev/null 2>&1; then
+                echo "Backend restarted after ${i}s"
+                break
+              fi
+              sleep 1
+            done
+            node scripts/seed-ci-local.js
+            echo "Re-seed complete"
+          fi
+
+          echo ""
+          echo "--- Full backend log so far ---"
+          cat /tmp/ci-backend.log || echo "(no backend log)"
+
+          echo ""
+          echo "================================================"
+          echo "  END PRE-MAESTRO DIAGNOSTIC"
+          echo "================================================"
+        env:
+          TEST_EMAIL: ${{ env.PRIMARY_TEST_EMAIL }}
+          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+          OWEZY_ALLOW_INSECURE_LOCAL_AUTH: '1'
+          BACKEND_URL: http://127.0.0.1:3001
+          NODE_OPTIONS: --experimental-sqlite
+          OWEZY_STORE_MODE: memory
+
+      - name: Run Maestro tests
+        run: |
+          mkdir -p screenshots
+          FLOW=".maestro/01_split_history.yaml"
+          echo "=== Running smoke flow: $FLOW ==="
+          maestro test \
+            -e PRIMARY_TEST_EMAIL="$PRIMARY_TEST_EMAIL" \
+            -e PRIMARY_TEST_PASSWORD="$PRIMARY_TEST_PASSWORD" \
+            -e PRIMARY_TEST_DISPLAY_NAME="$PRIMARY_TEST_DISPLAY_NAME" \
+            -e PRIMARY_TEST_USERNAME="$PRIMARY_TEST_USERNAME" \
+            "$FLOW"
+        env:
+          PRIMARY_TEST_EMAIL: ${{ env.PRIMARY_TEST_EMAIL }}
+          PRIMARY_TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+          PRIMARY_TEST_DISPLAY_NAME: CI Primary
+          PRIMARY_TEST_USERNAME: cibotalpha1
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: '300000'
+          MAESTRO_CLI_NO_ANALYTICS: '1'
+
+      - name: Capture iOS device logs
+        if: always()
+        run: |
+          mkdir -p /tmp/device-logs
+
+          echo "=== Capturing app log (owezy + react-native processes) ==="
+          xcrun simctl spawn booted log show \
+            --predicate 'processImagePath CONTAINS[c] "owezy" OR processImagePath CONTAINS[c] "react-native"' \
+            --style compact --last 10m 2>/dev/null > /tmp/device-logs/app.log || true
+
+          echo "=== Capturing network/ATS log ==="
+          xcrun simctl spawn booted log show \
+            --predicate 'subsystem == "com.apple.CFNetwork" OR subsystem == "com.apple.network" OR subsystem CONTAINS "nsurlsession" OR category CONTAINS "ATS"' \
+            --style compact --last 10m 2>/dev/null > /tmp/device-logs/network.log || true
+
+          echo "=== Capturing ATS/security log ==="
+          xcrun simctl spawn booted log show \
+            --predicate 'subsystem == "com.apple.security" OR messageType == fault OR messageType == error' \
+            --style compact --last 10m 2>/dev/null > /tmp/device-logs/security.log || true
+
+          echo "=== Copying full backend log ==="
+          cp /tmp/ci-backend.log /tmp/device-logs/ci-backend.log 2>/dev/null || true
+
+          echo "=== Port 3001 state at capture time ==="
+          lsof -i :3001 2>/dev/null >> /tmp/device-logs/ci-backend.log || true
+
+          echo "--- last 80 lines of app log ---"
+          tail -80 /tmp/device-logs/app.log || true
+          echo "--- last 40 lines of network log ---"
+          tail -40 /tmp/device-logs/network.log || true
+          echo "--- FULL backend log (all requests received) ---"
+          cat /tmp/device-logs/ci-backend.log || true
+        continue-on-error: true
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-screenshots
+          path: screenshots/
+
+      - name: Upload Maestro debug output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-debug
+          path: /Users/runner/.maestro/tests/
+
+      - name: Upload backend log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-backend-log
+          path: /tmp/ci-backend.log
+
+      - name: Upload iOS device logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-device-logs
+          path: /tmp/device-logs/

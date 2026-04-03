@@ -1,0 +1,56 @@
+appId: app.owezy.receipt.splitter
+---
+- launchApp:
+    clearState: true
+
+- extendedWaitUntil:
+    visible:
+      id: "tab-login"
+    timeout: 20000
+
+- tapOn:
+    id: "tab-login"
+- tapOn:
+    id: "login-email"
+- inputText: ${PRIMARY_TEST_EMAIL}
+- tapOn:
+    id: "login-password"
+- inputText: ${PRIMARY_TEST_PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "login-button"
+
+- extendedWaitUntil:
+    visible:
+      text: "Ready to split a bill?"
+    timeout: 60000
+
+- tapOn:
+    text: "OK"
+    optional: true
+- tapOn: "Profile"
+- extendedWaitUntil:
+    visible:
+      text: "${PRIMARY_TEST_DISPLAY_NAME}"
+    timeout: 15000
+- tapOn:
+    id: "profile-edit-button"
+
+- extendedWaitUntil:
+    visible:
+      id: "edit-phone"
+    timeout: 15000
+- tapOn:
+    id: "edit-phone"
+- inputText: "(555) 333-4444"
+- tapOn:
+    id: "edit-venmo"
+- inputText: "primaryci"
+- tapOn:
+    id: "save-profile-top"
+
+- extendedWaitUntil:
+    visible:
+      text: "(555) 333-4444"
+    timeout: 15000
+- takeScreenshot: "screenshots/03_profile"

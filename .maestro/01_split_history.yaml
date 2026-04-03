@@ -1,0 +1,95 @@
+appId: app.owezy.receipt.splitter
+---
+- launchApp:
+    clearState: true
+
+- extendedWaitUntil:
+    visible:
+      id: "tab-login"
+    timeout: 20000
+
+- tapOn:
+    id: "tab-login"
+- tapOn:
+    id: "login-email"
+- inputText: ${PRIMARY_TEST_EMAIL}
+- tapOn:
+    id: "login-password"
+- inputText: ${PRIMARY_TEST_PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "login-button"
+
+- extendedWaitUntil:
+    visible:
+      text: "Ready to split a bill?"
+    timeout: 60000
+
+- tapOn:
+    text: "OK"
+    optional: true
+- takeScreenshot: "screenshots/01_scan"
+- extendedWaitUntil:
+    visible:
+      id: "e2e-basic-receipt-button"
+    timeout: 15000
+- tapOn:
+    id: "e2e-basic-receipt-button"
+
+- extendedWaitUntil:
+    visible:
+      text: "Items"
+    timeout: 30000
+- tapOn:
+    id: "continue-items"
+
+- extendedWaitUntil:
+    visible:
+      text: "Tip"
+    timeout: 15000
+- tapOn:
+    id: "continue-tip"
+
+- extendedWaitUntil:
+    visible:
+      id: "quick-add-bill-button"
+    timeout: 15000
+- tapOn:
+    id: "quick-add-bill-button"
+- tapOn: "Friend name"
+- inputText: "Alice"
+- tapOn: "Add to This Split"
+- tapOn:
+    id: "quick-add-bill-button"
+- tapOn: "Friend name"
+- inputText: "Bob"
+- tapOn: "Add to This Split"
+- tapOn:
+    id: "continue-people"
+
+- extendedWaitUntil:
+    visible:
+      id: "continue-assign"
+    timeout: 15000
+- tapOn:
+    id: "continue-assign"
+
+- extendedWaitUntil:
+    visible:
+      id: "confirm-split"
+    timeout: 15000
+- tapOn:
+    id: "confirm-split"
+
+- extendedWaitUntil:
+    visible:
+      id: "done-button"
+    timeout: 15000
+- tapOn:
+    id: "done-button"
+
+- extendedWaitUntil:
+    visible:
+      text: "Today"
+    timeout: 15000
+- takeScreenshot: "screenshots/01_history"

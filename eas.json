@@ -1,0 +1,63 @@
+{
+  "cli": {
+    "version": ">= 18.0.5",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "environment": "development",
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://backend-7yfqvahoxa-uc.a.run.app",
+        "EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID": "pro",
+        "EXPO_PUBLIC_ADS_ENABLED": "1",
+        "EXPO_PUBLIC_IOS_ON_DEVICE_OCR_ENABLED": "1",
+        "EXPO_PUBLIC_IOS_ON_DEVICE_OCR_FALLBACK_ONLY_ON_NO_ITEMS": "1"
+      }
+    },
+    "simulator": {
+      "ios": {
+        "simulator": true
+      },
+      "environment": "development",
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://backend-7yfqvahoxa-uc.a.run.app",
+        "EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID": "pro",
+        "EXPO_PUBLIC_ADS_ENABLED": "0",
+        "EXPO_PUBLIC_IOS_ON_DEVICE_OCR_ENABLED": "1",
+        "EXPO_PUBLIC_IOS_ON_DEVICE_OCR_FALLBACK_ONLY_ON_NO_ITEMS": "1",
+        "EXPO_NO_NEW_ARCH": "1"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "environment": "preview",
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://backend-7yfqvahoxa-uc.a.run.app",
+        "EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID": "pro",
+        "EXPO_PUBLIC_ADS_ENABLED": "1",
+        "EXPO_PUBLIC_IOS_ON_DEVICE_OCR_ENABLED": "1",
+        "EXPO_PUBLIC_IOS_ON_DEVICE_OCR_FALLBACK_ONLY_ON_NO_ITEMS": "1"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "environment": "production",
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://backend-7yfqvahoxa-uc.a.run.app",
+        "EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID": "pro",
+        "EXPO_PUBLIC_ADS_ENABLED": "1",
+        "EXPO_PUBLIC_IOS_ON_DEVICE_OCR_ENABLED": "1",
+        "EXPO_PUBLIC_IOS_ON_DEVICE_OCR_FALLBACK_ONLY_ON_NO_ITEMS": "1"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascAppId": "6760238769"
+      }
+    }
+  }
+}

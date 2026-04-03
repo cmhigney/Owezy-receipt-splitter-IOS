@@ -1,0 +1,93 @@
+Owezy Changelog
+
+Format
+- Date
+- Commit
+- Summary of user-visible or release-relevant changes
+
+2026-03-20
+unreleased
+- Compacted the profile photo section, removed the extra change-photo label, and raised saved photo quality while keeping native pinch-to-zoom crop editing.
+- Fixed profile photo updates to use a higher backend size limit and clearer “photo too large” errors.
+- Changed Pro plan messaging to show exact monthly scan counts instead of misleading unlimited copy.
+- Added remaining monthly scan counts to the scan home and Pro/profile surfaces for paid plans as well as free.
+- Tightened the on-device OCR non-receipt guard so blank/random photos are less likely to parse as fake receipts.
+- Changed the native startup splash to a plain white screen so the static logo no longer appears before the animated intro.
+- Fixed the Owezy logo tile so auth and launch-intro rendering does not show black around the mark.
+- Added a centralized unlimited-scan backend override for cmhigney@gmail.com.
+- Changed the GitHub iOS E2E workflow to manual-only so normal pushes do not auto-run Actions.
+- Fixed profile photo upload failures caused by overly small backend size limits.
+- Added friend/friend-request/profile-lookup avatar rendering when profile photos are available.
+
+2026-03-20
+1459564
+- Replaced the receipt capture path with an in-app camera for scans.
+- Added explicit flash controls: Off, Auto, Flash On.
+- Added low-light capture guidance in the camera UI.
+- Added scan cancel action during processing.
+- Added faster failure paths for obvious non-receipts.
+- Added scan timeout handling so bad inputs do not hang indefinitely.
+- Wired OCR timeout through runtime config.
+
+2026-03-20
+e5543dc
+- Shortened the green scan tip so it takes less space.
+- Improved the Friends tab copy to explain adding users by unique @username.
+- Removed the misleading requests loading spinner behavior on tab entry.
+
+2026-03-20
+8d31389
+- Unverified users are now gated on auth before the first scan home screen.
+- Prevented the app from routing into the scan tab before email verification is complete.
+
+2026-03-20
+34ba3b1
+- Smoothed the email verification flow and reduced noisy resend behavior.
+- Moved the scan tip higher on the screen and compacted the "How it works" section.
+- Improved restaurant name extraction so unclear headers are less likely to be mistaken for receipt items.
+
+2026-03-20
+b02c889
+- Added App Store Connect submit configuration for cleaner iOS submission flow.
+
+2026-03-20
+7acf298
+- Hardened auth flows and release/runtime config.
+- Improved auth error handling and stale-session/profile repair logic.
+- Fixed signup/login UI centering and phone input sizing.
+- Cleaned up launch blockers found during the pre-launch audit.
+
+2026-03-19
+924c0dc
+- Fixed iOS CI runtime config fallback so release builds can read embedded Expo extra values.
+
+2026-03-19
+5a4e3fa
+- Reduced iOS CI to a smaller smoke flow.
+
+2026-03-19
+8344128
+- Simplified the Maestro receipt tap step in iOS E2E coverage.
+
+2026-03-19
+8dfa7c7
+- Hardened iOS E2E runtime flags and flows.
+
+2026-03-19
+f1cc628
+- Switched Maestro CI to safer test emails.
+
+2026-03-19
+74b6c09
+- Added a faster CI preflight before the longer iOS build.
+
+Maintenance rule
+- Update this file whenever a change affects UX, app behavior, release configuration, monetization, auth, privacy/legal text, OCR behavior, or App Store readiness.
+
+Unreleased
+- Tightened backend OCR routing so risky Apple Vision parses fall back to stronger cloud OCR more often.
+- Fixed low-light faded thermal receipt parsing and corrected the short coffee-shop tax/tip swap by forcing fallback on suspicious compact receipts.
+- Fixed a larger receipt case where a missing parsed tip caused the total to stop at subtotal plus tax.
+- Fixed the remaining Vision-side OCR misses by filtering metadata rows like `Chk` and `Bar Tab Seat` out of items and improving multi-line restaurant-name extraction.
+- Ran an expanded live OCR sweep across the 26-receipt corpus plus 10 synthetic dim/flash variants to measure the new boundary.
+- Final live real-receipt sweep now passes 26/26 baseline-matched receipts with 0 hard errors.

@@ -1,0 +1,32 @@
+Owezy iOS EAS build command
+===========================
+
+Run from this folder:
+C:\Users\cmhig\Downloads\Owezy-Bill-Splitter-IOS-ANDROID-main\Owezy-Bill-Splitter-IOS-ANDROID-main
+
+PowerShell commands:
+
+cd "C:\Users\cmhig\Downloads\Owezy-Bill-Splitter-IOS-ANDROID-main\Owezy-Bill-Splitter-IOS-ANDROID-main"
+$env:EAS_NO_VCS="1"
+npx.cmd eas-cli build --platform ios --profile development
+
+Why this command:
+- `npx eas ...` resolves the wrong package on this machine.
+- `EAS_NO_VCS=1` bypasses the local git packaging step that failed during upload.
+
+
+Firebase deploy commands
+========================
+
+Run from this folder:
+C:\Users\cmhig\Downloads\Owezy-Bill-Splitter-IOS-ANDROID-main\Owezy-Bill-Splitter-IOS-ANDROID-main
+
+PowerShell commands:
+
+cmd /c "npm --prefix functions install"
+cmd /c "npm --prefix functions run build"
+firebase deploy --only "functions,firestore"
+
+Why this command:
+- PowerShell requires quotes around `functions,firestore` or it splits the targets incorrectly.
+- `cmd /c npm ...` avoids the local PowerShell script execution-policy issue on this machine.

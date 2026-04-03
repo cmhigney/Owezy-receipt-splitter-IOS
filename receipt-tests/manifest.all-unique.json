@@ -1,0 +1,111 @@
+{
+  "defaults": {
+    "peopleCount": 4
+  },
+  "cases": [
+    {
+      "file": "receipts/01_blank_tip_line.png",
+      "label": "u01 receipts/01_blank_tip_line.png"
+    },
+    {
+      "file": "receipts/02_handwritten_tip_neat.png",
+      "label": "u02 receipts/02_handwritten_tip_neat.png"
+    },
+    {
+      "file": "receipts/03_handwritten_tip_messy.png",
+      "label": "u03 receipts/03_handwritten_tip_messy.png"
+    },
+    {
+      "file": "receipts/04_auto_gratuity_18pct.png",
+      "label": "u04 receipts/04_auto_gratuity_18pct.png"
+    },
+    {
+      "file": "receipts/05_auto_grat_plus_handwritten_tip.png",
+      "label": "u05 receipts/05_auto_grat_plus_handwritten_tip.png"
+    },
+    {
+      "file": "receipts/06_zero_tip_handwritten.png",
+      "label": "u06 receipts/06_zero_tip_handwritten.png"
+    },
+    {
+      "file": "receipts/07_split_check.png",
+      "label": "u07 receipts/07_split_check.png"
+    },
+    {
+      "file": "receipts/08_fine_dining_auto_grat_plus_big_tip.png",
+      "label": "u08 receipts/08_fine_dining_auto_grat_plus_big_tip.png"
+    },
+    {
+      "file": "receipts/09_counter_service_tip_on_terminal.png",
+      "label": "u09 receipts/09_counter_service_tip_on_terminal.png"
+    },
+    {
+      "file": "receipts/10_brunch_generous_handwritten_tip.png",
+      "label": "u10 receipts/10_brunch_generous_handwritten_tip.png"
+    },
+    {
+      "file": "receipts-batch2/11_faded_thermal_cash.png",
+      "label": "u11 receipts-batch2/11_faded_thermal_cash.png"
+    },
+    {
+      "file": "receipts-batch2/12_discounts_and_comp.png",
+      "label": "u12 receipts-batch2/12_discounts_and_comp.png"
+    },
+    {
+      "file": "receipts-batch2/13_foreign_euro_service_compris.png",
+      "label": "u13 receipts-batch2/13_foreign_euro_service_compris.png"
+    },
+    {
+      "file": "receipts-batch2/14_delivery_with_fees.png",
+      "label": "u14 receipts-batch2/14_delivery_with_fees.png"
+    },
+    {
+      "file": "receipts-batch2/15_long_receipt_many_items.png",
+      "label": "u15 receipts-batch2/15_long_receipt_many_items.png"
+    },
+    {
+      "file": "receipts-batch2/16_modifications_allergies.png",
+      "label": "u16 receipts-batch2/16_modifications_allergies.png"
+    },
+    {
+      "file": "receipts-batch2/17_bar_tab_crossed_out_tip.png",
+      "label": "u17 receipts-batch2/17_bar_tab_crossed_out_tip.png"
+    },
+    {
+      "file": "receipts-batch2/18_suggested_tip_amounts.png",
+      "label": "u18 receipts-batch2/18_suggested_tip_amounts.png"
+    },
+    {
+      "file": "receipts-batch2/19_alcohol_separated_tax.png",
+      "label": "u19 receipts-batch2/19_alcohol_separated_tax.png"
+    },
+    {
+      "file": "receipts-batch2/20_split_payment_giftcard.png",
+      "label": "u20 receipts-batch2/20_split_payment_giftcard.png"
+    },
+    {
+      "file": "receipts-batch2/21_skewed_crumpled_cash.png",
+      "label": "u21 receipts-batch2/21_skewed_crumpled_cash.png"
+    },
+    {
+      "file": "receipts-batch2/22_handwritten_math_on_receipt.png",
+      "label": "u22 receipts-batch2/22_handwritten_math_on_receipt.png"
+    },
+    {
+      "file": "receipts-batch2/23_coffee_shop_short.png",
+      "label": "u23 receipts-batch2/23_coffee_shop_short.png"
+    },
+    {
+      "file": "receipts-batch2/24_per_person_seats.png",
+      "label": "u24 receipts-batch2/24_per_person_seats.png"
+    },
+    {
+      "file": "receipts-batch2/25_coupon_promo_code.png",
+      "label": "u25 receipts-batch2/25_coupon_promo_code.png"
+    },
+    {
+      "file": "receipts-batch2/26_hotel_room_service.png",
+      "label": "u26 receipts-batch2/26_hotel_room_service.png"
+    }
+  ]
+}

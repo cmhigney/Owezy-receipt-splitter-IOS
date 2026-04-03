@@ -1,0 +1,74 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+bun.lock
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+ios/
+android/
+!modules/**/ios/
+!modules/**/ios/**
+*.orig.*
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.ipa
+*.apk
+*.aab
+*.xcarchive
+*.mobileprovision
+GoogleService-Info.plist
+google-services.json
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+.env
+functions/.env
+functions/.env.*
+functions/.runtimeconfig.json
+.firebaserc
+
+# typescript
+*.tsbuildinfo
+.vercel
+.firebase/
+firebase-debug.log
+
+# generated build output
+artifacts/
+functions/lib/
+Thumbs.db
+.idea/
+
+.rork
+
+receipt-tests/receipts/
+receipt-tests/reports/
+backend/data/
+tmp-tests/
+rork-eslint.config.js
+core
+node_modules
+.expo
+run-maestro.ps1

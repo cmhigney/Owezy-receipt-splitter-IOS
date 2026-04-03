@@ -1,0 +1,11 @@
+{
+  "platforms": [
+    "apple"
+  ],
+  "apple": {
+    "podspecPath": "ios/AppleVisionOCR.podspec",
+    "modules": [
+      "AppleVisionOCRModule"
+    ]
+  }
+}

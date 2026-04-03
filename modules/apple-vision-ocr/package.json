@@ -1,0 +1,8 @@
+{
+  "name": "apple-vision-ocr",
+  "version": "1.0.0",
+  "description": "Local Expo module for on-device Apple Vision OCR",
+  "main": "index.ts",
+  "types": "index.ts",
+  "license": "MIT"
+}

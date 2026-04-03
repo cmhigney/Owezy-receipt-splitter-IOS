@@ -1,0 +1,105 @@
+Owezy App Features
+Last updated: 2026-03-20
+
+This file is the current feature inventory for the app. Update it whenever user-facing behavior, launch setup, monetization, auth, scanning, privacy, or legal flows change.
+
+Core product
+- Scan restaurant receipts and extract merchant name, items, tax, tip, total, and auto-gratuity details.
+- Split bills by assigning items to people, then calculate each person's share.
+- Support manual item entry when scanning is not used or fails.
+- Save split history and review previous receipts/summaries.
+
+Receipt scanning and OCR
+- In-app receipt camera for iOS/native builds with explicit flash controls: Off, Auto, Flash On.
+- Upload receipt photos from the photo library.
+- Apple Vision on-device OCR is used first on iOS when enabled.
+- Parsed Apple Vision text is sent to the backend receipt parser before cloud image OCR fallback.
+- Cloud OCR/backend receipt parsing remains available for harder receipts and fallback paths.
+- Riskier Vision parses now fall back to cloud OCR more aggressively on faded thermal receipts, compact short receipts with both tax and tip, and larger receipts that appear to mention tip/gratuity but parse as zero tip.
+- OCR heuristics now better reject receipt metadata as fake line items and handle multi-line restaurant headers more accurately.
+- Fast non-receipt rejection when the image clearly does not resemble a readable receipt.
+- The OCR guard is stricter against blank/random images so garbage photos are less likely to become fake receipts.
+- Scan timeout handling to avoid indefinite loading on bad inputs or slow OCR paths.
+- Cancel button during scan processing so users can back out of a long-running scan.
+- Manual correction flow after scan for fixing extracted items and totals.
+- Basic guidance for clearer capture on the scan screen and in the custom camera view.
+
+Bill splitting flow
+- Edit scanned items before splitting.
+- Add tip and tax into the split flow.
+- Detect receipt tip and auto-gratuity when present.
+- Assign items across multiple people.
+- Review summary before payment coordination.
+- Payment step for organizing how people should pay.
+
+Auth and account
+- Firebase Authentication for signup, login, logout, password-based auth, and email verification.
+- Email verification gating before unverified users reach the main scan flow.
+- Backend profile creation and repair after Firebase auth when needed.
+- Account deletion flow that removes app account/profile data.
+- Reuse of an email address after account deletion is supported.
+
+Profile and identity
+- Editable display name, username, avatar/photo, and payment handles.
+- Profile photo updates support larger inline image payloads and client-side compression before save.
+- Profile photo uploads now fail with a clear size message instead of raw backend character-limit errors.
+- Profile photo edit UI is more compact, and the native crop flow keeps pinch-to-zoom editing enabled.
+- Unique usernames are generated at signup and enforced on update.
+- Username lookup is used for friend requests.
+- Profile shows the user's unique @username.
+- Terms of Use and Privacy Policy are available in-app.
+
+Friends
+- Send friend requests by unique username.
+- Accept and decline incoming friend requests.
+- View outgoing pending friend requests.
+- Friend lookup cards, request cards, and saved friends can display profile photos when available.
+- Manage saved friends and edit their payment/contact details.
+- Friends screen explains that adding someone uses the unique @username from Profile.
+
+Payments and sharing
+- Store optional Venmo, Cash App, Zelle, PayPal, and phone details.
+- Payment setup screen for configuring payout/contact handles.
+- Payment-oriented summary flow to help settle up after splitting.
+
+History
+- View prior split history.
+- Open detail pages for previous splits.
+- Reuse history as a record of prior receipt totals and assignments.
+
+Monetization
+- Free monthly scan allowance.
+- RevenueCat-managed Owezy Pro subscription support.
+- Paid scan allowance enforcement via backend and RevenueCat entitlement checks.
+- Pro Monthly is presented as 40 scans per month and Pro Annual as 60 scans per month in app UI.
+- Remaining monthly scans are shown on the scan home screen and Pro/profile surfaces for free and paid plans.
+- Backend supports email-based unlimited-scan overrides for designated owner/admin accounts.
+- Restore purchases flow.
+- AdMob banner placements for eligible free-tier users.
+- Ads hidden for Pro users.
+
+Privacy, legal, and permissions
+- Camera permission for scanning receipts.
+- Photo library permission for uploading receipt images.
+- ATT-related strings/config present for iOS release metadata flow.
+- Privacy Policy screen and hosted privacy policy page.
+- Terms of Use screen and hosted Terms page.
+- Account deletion available in-app.
+
+Launch and release setup
+- Expo/EAS build configuration for iOS development, preview, and production builds.
+- Native startup splash is a plain white screen before the animated Owezy logo intro renders.
+- Firebase Functions backend deployment support.
+- Runtime config for Firebase, RevenueCat, AdMob, OCR, and E2E flags.
+- iOS custom native module for Apple Vision OCR included in the repo.
+- GitHub iOS E2E workflow is manual-only and does not run automatically on every push to main.
+
+Test and QA helpers
+- E2E/test receipt hooks for development and CI paths.
+- Smoke-test receipt assets for automated iOS testing.
+- Auth smoke script for validating live signup/login/delete flows.
+
+Known scope boundaries
+- OCR accuracy depends on receipt quality, lighting, blur, crop, and merchant formatting.
+- Very dark receipts, unusually styled receipts, and non-receipt photos may still fail or need manual correction.
+- The cancel scan action exits the UI flow immediately, but does not hard-abort an already-started network/OCR task underneath.
