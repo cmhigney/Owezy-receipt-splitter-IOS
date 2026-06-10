@@ -15,7 +15,10 @@
     "eas:build:ios:production": "npx eas build --platform ios --profile production",
     "eas:submit:ios": "npx eas submit --platform ios --profile production",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx,.mjs,.cjs",
-    "test-receipts": "node scripts/receipt-harness.js"
+    "test-receipts": "node scripts/receipt-harness.js",
+    "test-parser": "node scripts/parser-unit-tests.mjs",
+    "test-scan-region": "node scripts/scan-region-tests.mjs",
+    "test": "node scripts/parser-unit-tests.mjs && node scripts/scan-region-tests.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

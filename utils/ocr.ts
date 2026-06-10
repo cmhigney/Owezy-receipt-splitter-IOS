@@ -4,6 +4,12 @@ import { ReceiptItem, AutoGratuityInfo } from '@/types';
 import { generateId } from '@/utils/splitting';
 import { trpcClient } from '@/lib/trpc';
 import { getOptionalRuntimeValue, getRuntimeFlag } from '@/lib/runtimeConfig';
+import {
+  type ScanRegion,
+  boxFallsInsideScanRegion,
+  expandScanRegion,
+  normalizeScanRegion,
+} from '@/utils/scanGeometry';
 
 export type OCRResult = {
   restaurantName: string;
@@ -14,12 +20,7 @@ export type OCRResult = {
   hasFees?: boolean;
   autoGratuity: AutoGratuityInfo;
 };
-export type OCRScanRegion = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
+export type OCRScanRegion = ScanRegion;
 export type ParseReceiptImageOptions = {
   scanRegion?: OCRScanRegion;
 };
@@ -220,26 +221,6 @@ function normalizeLineText(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
 }
 
-function clampUnit(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  return Math.min(1, Math.max(0, value));
-}
-
-function normalizeScanRegion(region: OCRScanRegion | undefined): OCRScanRegion | null {
-  if (!region) return null;
-  const x = clampUnit(region.x);
-  const y = clampUnit(region.y);
-  const width = clampUnit(region.width);
-  const height = clampUnit(region.height);
-  if (width <= 0 || height <= 0) return null;
-  return {
-    x,
-    y,
-    width: Math.min(width, 1 - x),
-    height: Math.min(height, 1 - y),
-  };
-}
-
 function normalizeBoundingBox(value: unknown): AppleVisionLine['boundingBox'] {
   if (!value || typeof value !== 'object') return null;
   const x = Number((value as { x?: unknown }).x);
@@ -362,31 +343,7 @@ function dedupeAppleVisionLines(lines: AppleVisionLine[]): AppleVisionLine[] {
 }
 
 function lineFallsInsideScanRegion(line: AppleVisionLine, scanRegion: OCRScanRegion): boolean {
-  const box = line.boundingBox;
-  if (!box) return true;
-
-  const lineLeft = box.x;
-  const lineTop = box.y;
-  const lineRight = box.x + box.width;
-  const lineBottom = box.y + box.height;
-  const regionLeft = scanRegion.x;
-  const regionTop = scanRegion.y;
-  const regionRight = scanRegion.x + scanRegion.width;
-  const regionBottom = scanRegion.y + scanRegion.height;
-
-  const overlapWidth = Math.max(0, Math.min(lineRight, regionRight) - Math.max(lineLeft, regionLeft));
-  const overlapHeight = Math.max(0, Math.min(lineBottom, regionBottom) - Math.max(lineTop, regionTop));
-  const lineArea = Math.max(0.0001, box.width * box.height);
-  const overlapArea = overlapWidth * overlapHeight;
-  const centerX = box.x + box.width / 2;
-  const centerY = box.y + box.height / 2;
-  const centerInside =
-    centerX >= regionLeft &&
-    centerX <= regionRight &&
-    centerY >= regionTop &&
-    centerY <= regionBottom;
-
-  return centerInside || overlapArea / lineArea >= 0.55;
+  return boxFallsInsideScanRegion(line.boundingBox, scanRegion);
 }
 
 function filterPayloadToScanRegion(
@@ -409,6 +366,56 @@ function filterPayloadToScanRegion(
         ? confidenceValues.reduce((sum, value) => sum + value, 0) / confidenceValues.length
         : null,
   };
+}
+
+function financiallyImportantLineKeys(lines: AppleVisionLine[]): Set<string> {
+  const keys = new Set<string>();
+  for (const line of lines) {
+    if (lineLooksFinanciallyImportant(line.text)) {
+      keys.add(normalizeLineText(line.text).toLowerCase());
+    }
+  }
+  return keys;
+}
+
+/**
+ * Decide which Apple Vision text to feed the parser when the user framed a scan
+ * region. The on-screen guide is treated as a focus *hint*, never a hard crop:
+ * if framing to the (already inflated) region would drop lines that look
+ * financially important — subtotal/tax/tip/total/priced item rows — or would
+ * discard most of what we read, we fall back to the full image text so the
+ * receipt's items and totals are never lost just because it overflowed the box.
+ */
+function chooseOnDeviceRegionPayload(
+  full: NormalizedOnDeviceOcrPayload | null,
+  region: OCRScanRegion | null,
+  traceId: string,
+): NormalizedOnDeviceOcrPayload | null {
+  if (!full || !region) return full;
+
+  const filtered = filterPayloadToScanRegion(full, region);
+  if (!filtered) return full;
+
+  const fullImportant = financiallyImportantLineKeys(full.lines);
+  const filteredImportant = financiallyImportantLineKeys(filtered.lines);
+  let lostImportantLines = 0;
+  for (const key of fullImportant) {
+    if (!filteredImportant.has(key)) lostImportantLines += 1;
+  }
+  const keptRatio = full.lines.length > 0 ? filtered.lines.length / full.lines.length : 1;
+  const droppedTooMuch = full.lines.length >= 6 && keptRatio < 0.5;
+
+  if (lostImportantLines > 0 || droppedTooMuch) {
+    debugLog(`[OCR][${traceId}] Framed region would crop receipt content; using full image text`, {
+      fullLineCount: full.lines.length,
+      framedLineCount: filtered.lines.length,
+      lostImportantLines,
+      keptRatio: Math.round(keptRatio * 100) / 100,
+    });
+    return full;
+  }
+
+  return filtered;
 }
 
 function lineLooksFinanciallyImportant(text: string): boolean {
@@ -792,11 +799,15 @@ export async function parseReceiptImage(
   const traceId = createTraceId('ocr');
   const startedAtMs = Date.now();
   const scanRegion = normalizeScanRegion(options.scanRegion);
-  debugLog(`[OCR][${traceId}] Starting parse`, { imageUri, scanRegion });
+  // The on-screen guide is usually tighter than the receipt, so inflate it into a
+  // forgiving region for both on-device filtering and cloud cropping. This keeps
+  // item lines and totals that sit just outside the box from being cropped away.
+  const safeScanRegion = expandScanRegion(scanRegion);
+  debugLog(`[OCR][${traceId}] Starting parse`, { imageUri, scanRegion, safeScanRegion });
 
   const mimeType = detectMimeTypeFromUri(imageUri);
-  const scanRegionKey = scanRegion
-    ? `${scanRegion.x.toFixed(4)}:${scanRegion.y.toFixed(4)}:${scanRegion.width.toFixed(4)}:${scanRegion.height.toFixed(4)}`
+  const scanRegionKey = safeScanRegion
+    ? `${safeScanRegion.x.toFixed(4)}:${safeScanRegion.y.toFixed(4)}:${safeScanRegion.width.toFixed(4)}:${safeScanRegion.height.toFixed(4)}`
     : 'full';
   const imageKey = `${mimeType}:${hashStringFnv1a32(imageUri)}:${scanRegionKey}`;
 
@@ -842,7 +853,7 @@ export async function parseReceiptImage(
         return base64;
       };
       const onDeviceAttempt = await tryExtractAppleVisionText(imageUri, traceId);
-      let onDevicePayload = filterPayloadToScanRegion(onDeviceAttempt.payload, scanRegion);
+      let onDevicePayload = chooseOnDeviceRegionPayload(onDeviceAttempt.payload, safeScanRegion, traceId);
 
       if (onDeviceAttempt.status === 'empty') {
         if (scanRegion) {
@@ -910,7 +921,7 @@ export async function parseReceiptImage(
               trpcClient.scans.parseReceipt.mutate({
                 imageBase64: await getBase64(),
                 mimeType,
-                scanRegion: scanRegion ?? undefined,
+                scanRegion: safeScanRegion ?? undefined,
               }),
               OCR_PARSE_TIMEOUT_MS,
               'OCR_TIMEOUT',
@@ -932,7 +943,7 @@ export async function parseReceiptImage(
             trpcClient.scans.parseReceipt.mutate({
               imageBase64: await getBase64(),
               mimeType,
-              scanRegion: scanRegion ?? undefined,
+              scanRegion: safeScanRegion ?? undefined,
             }),
             OCR_PARSE_TIMEOUT_MS,
             'OCR_TIMEOUT',
@@ -943,7 +954,7 @@ export async function parseReceiptImage(
           trpcClient.scans.parseReceipt.mutate({
             imageBase64: await getBase64(),
             mimeType,
-            scanRegion: scanRegion ?? undefined,
+            scanRegion: safeScanRegion ?? undefined,
           }),
           OCR_PARSE_TIMEOUT_MS,
           'OCR_TIMEOUT',
