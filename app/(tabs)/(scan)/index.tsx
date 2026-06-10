@@ -25,13 +25,17 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { E2E_ENABLE_TEST_RECEIPTS } from '@/lib/e2e';
 import { parseReceiptImage, type OCRScanRegion } from '@/utils/ocr';
+import { mapPreviewFrameToImageRegion } from '@/utils/scanGeometry';
 
 const DEBUG_LOGS = __DEV__;
 const SHOW_E2E_TEST_RECEIPTS = __DEV__ || E2E_ENABLE_TEST_RECEIPTS;
 const SCAN_RECEIPT_WIDTH = 160;
 const SCAN_RECEIPT_HEIGHT = 200;
 const SCAN_BEAM_HEIGHT = 3;
-const CAMERA_SCAN_FRAME_ASPECT = 1.45; // Slightly shorter than a real receipt so the guide fits smaller iPhones.
+// Taller guide that better matches a real (long, narrow) receipt. The OCR scan
+// region is inflated server-side from this frame, so content that overflows the
+// guide a little is still read — see utils/scanGeometry.expandScanRegion.
+const CAMERA_SCAN_FRAME_ASPECT = 1.6;
 
 type LayoutRect = {
   x: number;
@@ -50,11 +54,6 @@ function createTraceId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function clampUnit(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  return Math.min(1, Math.max(0, value));
-}
-
 function clampCameraZoom(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.min(0.7, Math.max(0, value));
@@ -66,61 +65,6 @@ function layoutsEqual(current: LayoutRect | null, next: LayoutRect): boolean {
     current.y === next.y &&
     current.width === next.width &&
     current.height === next.height;
-}
-
-function mapPreviewFrameToImageRegion(params: {
-  previewWidth: number;
-  previewHeight: number;
-  imageWidth: number;
-  imageHeight: number;
-  frameX: number;
-  frameY: number;
-  frameWidth: number;
-  frameHeight: number;
-}): OCRScanRegion | null {
-  const {
-    previewWidth,
-    previewHeight,
-    imageWidth,
-    imageHeight,
-    frameX,
-    frameY,
-    frameWidth,
-    frameHeight,
-  } = params;
-
-  if (
-    ![previewWidth, previewHeight, imageWidth, imageHeight, frameWidth, frameHeight].every(
-      (value) => Number.isFinite(value) && value > 0,
-    )
-  ) {
-    return null;
-  }
-
-  const previewAspect = previewWidth / previewHeight;
-  const imageAspect = imageWidth / imageHeight;
-
-  let displayedWidth = previewWidth;
-  let displayedHeight = previewHeight;
-  let offsetX = 0;
-  let offsetY = 0;
-
-  if (imageAspect > previewAspect) {
-    displayedHeight = previewHeight;
-    displayedWidth = displayedHeight * imageAspect;
-    offsetX = (displayedWidth - previewWidth) / 2;
-  } else {
-    displayedWidth = previewWidth;
-    displayedHeight = displayedWidth / imageAspect;
-    offsetY = (displayedHeight - previewHeight) / 2;
-  }
-
-  return {
-    x: clampUnit((frameX + offsetX) / displayedWidth),
-    y: clampUnit((frameY + offsetY) / displayedHeight),
-    width: clampUnit(frameWidth / displayedWidth),
-    height: clampUnit(frameHeight / displayedHeight),
-  };
 }
 
 function CameraHelperCard({
@@ -252,10 +196,11 @@ export default function ScanScreen() {
   const cameraTopPadding = insets.top + (isSmallPhone ? 10 : 14);
   const cameraBottomPadding = Math.max(insets.bottom, 12) + (isSmallPhone ? 10 : 14);
   const cameraSectionGap = isSmallPhone ? 12 : 16;
-  const cameraFrameStageMinHeight = isSmallPhone ? 240 : 360;
-  const cameraFrameHorizontalInset = isSmallPhone ? 8 : 12;
+  const cameraFrameStageMinHeight = isSmallPhone ? 280 : 420;
+  // Tighter insets give the capture guide more of the preview so a full receipt fits.
+  const cameraFrameHorizontalInset = isSmallPhone ? 6 : 8;
   // tabBarHeight already includes insets.bottom — don't double-add it
-  const cameraFrameVerticalInset = isSmallPhone ? 12 : 18;
+  const cameraFrameVerticalInset = isSmallPhone ? 8 : 10;
   const frameStageWidth = Math.max(
     cameraFrameStageLayout?.width ?? screenWidth - cameraHorizontalPadding * 2,
     0,
@@ -268,7 +213,7 @@ export default function ScanScreen() {
     0,
     Math.min(
       frameStageWidth - cameraFrameHorizontalInset * 2,
-      isTablet ? 440 : screenWidth - cameraHorizontalPadding * 2,
+      isTablet ? 520 : screenWidth - cameraHorizontalPadding * 2,
     ),
   );
   const cameraFrameWidthFromHeight = Math.max(
