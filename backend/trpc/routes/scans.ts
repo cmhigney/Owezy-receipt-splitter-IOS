@@ -1920,6 +1920,13 @@ function parseQuantityAndName(rawLabel: string): { quantity: number; name: strin
   if (qtyPrefix) {
     quantity = Math.max(1, Number(qtyPrefix[1]) || 1);
     label = cleanLine(qtyPrefix[2]);
+  } else {
+    // Also handle trailing-quantity forms like "Burger x2" or "Latte X 3".
+    const qtySuffix = label.match(/^(.+?)\s+[xX]\s*(\d{1,2})$/);
+    if (qtySuffix) {
+      quantity = Math.max(1, Number(qtySuffix[2]) || 1);
+      label = cleanLine(qtySuffix[1]);
+    }
   }
 
   if (label.length < 2) return null;
@@ -1934,7 +1941,9 @@ function parseQuantityAndName(rawLabel: string): { quantity: number; name: strin
   const letters = (label.match(/[A-Za-z]/g) || []).length;
   const digits = (label.match(/\d/g) || []).length;
   if (digits > letters) return null;
-  if (label.includes("#")) return null;
+  // Reject long reference/auth numbers like "#0012345" but keep menu items
+  // such as "Combo #2" or "Sandwich #3".
+  if (/#\s*\d{4,}/.test(label)) return null;
 
   return { quantity, name: label };
 }
@@ -2942,7 +2951,11 @@ function parseReceiptTextWithVision(
 
     const parsed = parseQuantityAndName(lineAmount.label);
     if (!parsed) continue;
-    if (amount <= 0 || amount > 1000) continue;
+    // Upper bound is a sanity guard against misread garbage only — section
+    // filtering already excludes totals/fees. A low cap (was $1000) silently
+    // dropped legitimate high-value items (catering, fine dining), which then
+    // cascaded into the whole receipt collapsing to the synthetic fallback.
+    if (amount <= 0 || amount > 100000) continue;
     if (i < itemSectionStartIndex || i >= totalsSectionStartIndex) continue;
 
     items.push({
@@ -3034,18 +3047,23 @@ function parseReceiptTextWithVision(
     }
   }
 
-  // If OCR never found decimals and totals are very large, they are often cents without the decimal.
-  if (!sawDecimal && subtotal === 0 && tax === 0 && tip === 0 && total >= 200) {
-    total = roundCurrency(total / 100);
-  }
-  if (!sawDecimal && subtotal >= 200) {
-    subtotal = roundCurrency(subtotal / 100);
-  }
-  if (!sawDecimal && tax >= 200) {
-    tax = roundCurrency(tax / 100);
-  }
-  if (!sawDecimal && tip >= 200) {
-    tip = roundCurrency(tip / 100);
+  // If OCR never found decimals and amounts are large, they are often cents
+  // written without the decimal point (e.g. "4599" meaning $45.99). Decide
+  // cents-mode ONCE from the dominant amount and scale every field by the same
+  // factor, so subtotal/tax/tip/total/items stay mutually consistent. The old
+  // code divided each field independently behind its own `>= 200` threshold,
+  // which produced mixed scales (e.g. subtotal $15 alongside tax $90).
+  if (!sawDecimal) {
+    const dominantAmount = Math.max(total, subtotal, tax, tip);
+    if (dominantAmount >= 200) {
+      subtotal = roundCurrency(subtotal / 100);
+      tax = roundCurrency(tax / 100);
+      tip = roundCurrency(tip / 100);
+      total = roundCurrency(total / 100);
+      for (const item of items) {
+        item.price = roundCurrency(item.price / 100);
+      }
+    }
   }
 
   if (items.length === 0 && (subtotal > 0 || total > 0)) {
@@ -3060,12 +3078,27 @@ function parseReceiptTextWithVision(
     }
   } else if (items.length > 0 && subtotal > 0) {
     const itemSum = roundCurrency(items.reduce((sum, item) => sum + item.price, 0));
-    if (itemSum <= 0 || subtotal > roundCurrency(itemSum * 1.8)) {
+    if (itemSum <= 0) {
+      // No usable item prices were parsed — fall back to a single line.
       items.splice(0, items.length, {
         name: "Receipt Items",
         price: subtotal,
         quantity: 1,
       });
+    } else if (subtotal > roundCurrency(itemSum * 1.8)) {
+      // The parsed items meaningfully under-account for the subtotal (some
+      // lines were missed). Previously every parsed item was discarded and
+      // replaced with one generic "Receipt Items" line. Instead, keep the
+      // items we did read and add a single remainder line so the subtotal
+      // still reconciles — partial parses no longer wipe out itemization.
+      const remainder = roundCurrency(subtotal - itemSum);
+      if (remainder > 0) {
+        items.push({
+          name: "Other items",
+          price: remainder,
+          quantity: 1,
+        });
+      }
     }
   }
 
